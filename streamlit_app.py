@@ -79,7 +79,7 @@ but it does not replace professional legal counsel.
 
 Now that we've got that out of the way, let's get started!""")
 
-OPENAI_API_KEY = st.sidebar.text_input("Enter your OpenAI API KEY")
+OPENAI_API_KEY = st.text_input("Enter your OpenAI API KEY")
 
 if OPENAI_API_KEY == "":
     st.warning("Enter your OpenAI API KEY")

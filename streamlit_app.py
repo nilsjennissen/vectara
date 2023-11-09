@@ -1,5 +1,4 @@
-
-# ---
+# ---------------------------------------------  IMPORT  ------------------------------------------------------------ #
 import os
 import tempfile
 import time
@@ -11,22 +10,13 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
 from langchain.vectorstores import Vectara
 
-
-# Constants
+# ----------------------------------------  STREAMLIT SECRETS  ------------------------------------------------------ #
 CUSTOMER_ID = st.secrets.VECTARA_CUSTOMER_ID
 API_KEY = st.secrets.VECTARA_API_KEY
 CORPUS_ID = int(st.secrets.VECTARA_CORPUS_ID)
-OPENAI_API_KEY = st.secrets.OPENAI_API_KEY
 
 
-# Sidebar for PDF upload
-with st.sidebar:
-    st.header("Configuration")
-    uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
-    submit_button = st.button("Submit")
-
-
-# Initialize Vectara Client
+# ----------------------------------------  VECTARA FUNCTIONS  ------------------------------------------------------ #
 def initialize_vectara():
     vectara = Vectara(
         vectara_customer_id=CUSTOMER_ID,
@@ -49,63 +39,84 @@ def get_knowledge_content(vectara, query, threshold=0.5):
     return knowledge_content
 
 
-
+# --------------------------------- -------  PROMPT TEMPLATE   ------------------------------------------------------ #
 prompt = PromptTemplate.from_template(
-    """You are a professional and friendly Legal Consultant and you are helping a client with a legal issue. The client is asking you for advice on a legal issue. Just explain him in detail the answer and nothing else. This is the issue: {issue} 
+    """You are a professional and friendly Legal Consultant and you are helping a client with a legal issue. The client 
+    is asking you for advice on a legal issue. Just explain him in detail the answer and nothing else. This is the 
+    issue: {issue} 
     To assist him with his issue, you need to know the following information: {knowledge} 
     """
 )
 
-runnable = prompt | ChatOpenAI(streaming=True, callbacks=[StreamingStdOutCallbackHandler()], openai_api_key=OPENAI_API_KEY) | StrOutputParser()
+
+# ---------------------------------------  STREAMLIT INTERFACE  ----------------------------------------------------- #
+st.set_page_config(
+    page_title="Vectara Legal Search Application",
+    page_icon=":card_file_box:",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 
-
-# Main Streamlit App
 st.title("Legal Consultation Chat")
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.sidebar.subheader("About")
 
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+st.sidebar.write("""Welcome to Vectara Legal Search Application! This innovative tool is designed to provide you with 
+comprehensive information on the English translation of German commercial law. 
+[GERMAN COMMERCIAL LAW](https://www.gesetze-im-internet.de/englisch_bgb/) 
+Whether you're a business owner, a legal professional, or simply someone trying to navigate the complexities of a foreign 
+legal environment, our application is here to assist you. 
 
-if user_input := st.chat_input("Enter your issue:"):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+Our legal chat feature is particularly useful when you're unfamiliar with the legal landscape in a new country. It's 
+designed to provide you with immediate, accurate, and easy-to-understand information, making the process of understanding 
+and complying with German commercial law a breeze.
 
-    knowledge_content = get_knowledge_content(vectara_client, user_input)
-    print("__________________ Start of knowledge content __________________")
-    print(knowledge_content)
-    response = runnable.invoke({"knowledge": knowledge_content, "issue": user_input})
+Please note, however, that while we strive to provide accurate and up-to-date information, the content provided by this 
+application can not be considered as legal advice. We strongly recommend consulting with a qualified legal professional 
+for any serious legal concerns or decisions. The Vectara Legal Search Application is a tool to aid your understanding, 
+but it does not replace professional legal counsel.
 
-    response_words = response.split()
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        for word in response_words:
-            full_response += word + " "
-            time.sleep(0.05)
-            message_placeholder.markdown(full_response + "▌")
-        message_placeholder.markdown(full_response)
+Now that we've got that out of the way, let's get started!""")
 
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+OPENAI_API_KEY = st.sidebar.text_input("Enter your OpenAI API KEY")
 
-# Run when the submit button is pressed
-if submit_button and uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
-        tmpfile.write(uploaded_file.getvalue())
-        tmp_filename = tmpfile.name
+if OPENAI_API_KEY == "":
+    st.warning("Enter your OpenAI API KEY")
+else:
+    st.success("OpenAI API KEY is set")
 
-    try:
-        vectara_client.add_files([tmp_filename])
-        st.sidebar.success("PDF file successfully uploaded to Vectara!")
-    except Exception as e:
-        st.sidebar.error(f"An error occurred: {str(e)}")
-    finally:
-        os.remove(tmp_filename)
 
+    runnable = prompt | ChatOpenAI(streaming=True, callbacks=[StreamingStdOutCallbackHandler()], openai_api_key=OPENAI_API_KEY) | StrOutputParser()
+
+    # -------------------------------------------  CHAT FLOW   --------------------------------------------------------- #
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if user_input := st.chat_input("Enter your issue:"):
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        knowledge_content = get_knowledge_content(vectara_client, user_input)
+        print("__________________ Start of knowledge content __________________")
+        print(knowledge_content)
+        response = runnable.invoke({"knowledge": knowledge_content, "issue": user_input})
+
+        response_words = response.split()
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            full_response = ""
+            for word in response_words:
+                full_response += word + " "
+                time.sleep(0.05)
+                message_placeholder.markdown(full_response + "▌")
+            message_placeholder.markdown(full_response)
+
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
